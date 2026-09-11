@@ -23,6 +23,21 @@ ACTUAL_LEGACY_SHA256="$(sha256sum "$LEGACY_FILE" | awk '{print $1}')"
 [ "$ACTUAL_LEGACY_SHA256" = "$EXPECTED_LEGACY_SHA256" ] ||
   fail "The live installer does not match the reviewed v0.8.0 legacy script (found $ACTUAL_LEGACY_SHA256)."
 
+# The ISO automatically starts an unmodified installer on tty1. If this wrapper
+# is launched from the advertised Alt+F2 debug shell, stop that old in-memory
+# process before replacing its script and starting the reviewed flow here.
+for process_dir in /proc/[0-9]*; do
+  [ -r "$process_dir/cmdline" ] || continue
+  process_cmd="$(tr '\000' ' ' < "$process_dir/cmdline" 2>/dev/null || true)"
+  case "$process_cmd" in
+    *"/usr/local/bin/haos-installer/installer.sh"*)
+      process_id="${process_dir##*/}"
+      [ "$process_id" = "$$" ] || kill -TERM "$process_id" 2>/dev/null || true
+      ;;
+  esac
+done
+sleep 1
+
 cp "$LEGACY_FILE" "$LEGACY_FILE.xalies-original"
 
 cat > "$LEGACY_FILE" <<'LEGACY_EOF'
